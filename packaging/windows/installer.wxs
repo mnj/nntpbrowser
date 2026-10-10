@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!-- WiX 5 authoring. Separate architecture identities avoid shared files. -->
+  <Package Name="NNTPBrowser ($(Arch))" Manufacturer="NNTPBrowser contributors"
+           Version="$(Version)" UpgradeCode="$(UpgradeCode)" Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer NNTPBrowser version is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="AppIcon" SourceFile="$(Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="NNTPBrowser $(Arch)">
+        <Component Id="MainExecutable" Guid="*">
+          <File Id="MainExecutable" Source="$(Stage)\nntpbrowser.exe" KeyPath="yes">
+            <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder"
+                      Name="NNTPBrowser ($(Arch))" Advertise="yes"
+                      WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+          </File>
+        </Component>
+        <Component Id="CliExecutable" Guid="*">
+          <File Id="CliExecutable" Source="$(Stage)\nntpbrowser-cli.exe" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="Complete" Title="NNTPBrowser" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="CliExecutable" />
+      <Files Directory="INSTALLFOLDER" Subdirectory="share" Include="$(Stage)\share\**" />
+    </Feature>
+  </Package>
+</Wix>

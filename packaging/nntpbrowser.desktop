@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=NNTPBrowser
+Comment=Browse Usenet articles and media
+Exec=nntpbrowser
+Icon=nntpbrowser
+Terminal=false
+Categories=Network;News;
+StartupNotify=true

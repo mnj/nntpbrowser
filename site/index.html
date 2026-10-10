@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101519">
+  <meta name="description" content="NNTPBrowser is a native Rust and egui Usenet browser. Read articles, preview media in memory, and download files with automatic PAR2 recovery.">
+  <meta property="og:title" content="NNTPBrowser — a fresh view of Usenet">
+  <meta property="og:description" content="Articles, a memory-only media gallery, and downloads with automatic PAR2 recovery. A native desktop app, written in Rust.">
+  <meta property="og:image" content="https://mnj.github.io/nntpbrowser/assets/screenshots/gallery.png">
+  <meta property="og:url" content="https://mnj.github.io/nntpbrowser/">
+  <title>NNTPBrowser — a fresh view of Usenet</title>
+  <link rel="canonical" href="https://mnj.github.io/nntpbrowser/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="header wrap">
+    <a class="brand" href="./" aria-label="NNTPBrowser home"><img src="favicon.svg" alt="" width="34" height="34"><span>NNTPBrowser</span></a>
+    <nav aria-label="Main navigation"><a href="#features">Features</a><a href="#screenshots">Screenshots</a><a href="#download">Download</a><a href="https://github.com/mnj/nntpbrowser" class="source-link">GitHub <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main id="main">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="dot"></span> Native desktop · Rust + egui</p>
+        <h1>A fresh view<br>of <span>Usenet.</span></h1>
+        <p class="lede">Read articles. Browse media. Bring files home.<br>A modern newsreader with a familiar layout and a carefully bounded cache.</p>
+        <div class="actions"><a class="button primary" href="#download">Get NNTPBrowser <span aria-hidden="true">↓</span></a><a class="button secondary" href="#screenshots">Take a look <span aria-hidden="true">→</span></a></div>
+        <p class="hero-note">Open source · MIT · Linux, Windows, macOS &amp; FreeBSD</p>
+      </div>
+      <figure class="hero-shot shot">
+        <a href="assets/screenshots/gallery.png" data-lightbox><img src="assets/screenshots/gallery.png" width="1280" height="820" alt="NNTPBrowser Gallery with server groups in the sidebar, adjustable media tiles, date filters and connection statistics"></a>
+        <figcaption><span class="dot"></span> Your groups, your view. Preview first. Save when you choose.</figcaption>
+      </figure>
+    </section>
+    <div class="principles wrap" aria-label="At a glance">
+      <div><span>01 / Browse</span><strong>Two views. One newsgroup.</strong><p>A mail-style reader and a visual media gallery.</p></div>
+      <div><span>02 / Preview</span><strong>In memory, by default.</strong><p>Gallery browsing creates no saved files or jobs.</p></div>
+      <div><span>03 / Download</span><strong>Repair when it’s needed.</strong><p>Missing parts, PAR2 recovery, and a durable queue.</p></div>
+    </div>
+    <section id="features" class="section wrap">
+      <div class="section-heading"><p class="eyebrow">Built for browsing</p><h2>The familiar workflow,<br>with a little more clarity.</h2><p>Servers and groups on the left. Your active group at the top. The details and controls where you need them.</p></div>
+      <div class="feature-grid">
+        <article><span class="feature-number">01</span><h3>Articles, with context</h3><p>A resizable article list and details pane. Search cached titles, read article bodies, and download selected files or a range of matching articles.</p></article>
+        <article><span class="feature-number">02</span><h3>A gallery that stays temporary</h3><p>Preview visible images and videos under your size limit. Offscreen requests stop; completed previews stay in a bounded RAM cache. Saving is explicit.</p></article>
+        <article><span class="feature-number">03</span><h3>Fetch the headers you need</h3><p>Start with the latest 10,000 headers. Fetch new, older, or all available headers, with cancellable progress and committed batches kept safely.</p></article>
+        <article><span class="feature-number">04</span><h3>Downloads that recover</h3><p>Import NZBs, pause, resume, and retry. Automatic recovery searches for matching missing parts and fetches PAR2 volumes as needed before verification.</p></article>
+        <article><span class="feature-number">05</span><h3>Room for large groups</h3><p>Checksummed zstd header blocks and a transactional SQLite catalog. Search and UTC date filters work across cached articles before pagination.</p></article>
+        <article><span class="feature-number">06</span><h3>See what’s happening</h3><p>Connection activity, smoothed transfer rates, process RAM and CPU, and inspectable error history. Tune TLS, connection limits, preview budgets, and storage paths.</p></article>
+      </div>
+    </section>
+    <section id="screenshots" class="section tour-section">
+      <div class="wrap">
+        <div class="section-heading"><p class="eyebrow">A closer look</p><h2>Different views.<br>The same place to explore.</h2><p>Actual app screenshots from isolated offline fixtures. Click any image to see it at full size.</p></div>
+        <div class="tour-controls" role="tablist" aria-label="App screenshots">
+          <button id="tab-gallery" role="tab" aria-selected="true" aria-controls="tour-panel" data-view="gallery" tabindex="0">Gallery</button>
+          <button id="tab-articles" role="tab" aria-selected="false" aria-controls="tour-panel" data-view="articles" tabindex="-1">Articles</button>
+          <button id="tab-downloads" role="tab" aria-selected="false" aria-controls="tour-panel" data-view="downloads" tabindex="-1">Downloads</button>
+          <button id="tab-recovery" role="tab" aria-selected="false" aria-controls="tour-panel" data-view="recovery" tabindex="-1">Recovery</button>
+        </div>
+        <div id="tour-panel" role="tabpanel" aria-labelledby="tab-gallery" tabindex="0">
+          <figure class="shot tour-shot"><a id="tour-link" href="assets/screenshots/gallery.png" data-lightbox><img id="tour-image" src="assets/screenshots/gallery.png" width="1280" height="820" loading="lazy" alt="Media gallery with temporary previews, adjustable tile size and cached-group date filtering"></a><figcaption id="tour-caption">Gallery · Adjustable tiles, cached-group date filters, and previews that stay in RAM until you save.</figcaption></figure>
+        </div>
+        <div class="screenshot-grid">
+          <figure class="shot"><a href="assets/screenshots/groups.png" data-lightbox><img src="assets/screenshots/groups.png" width="1280" height="820" loading="lazy" alt="Group subscription picker with sortable columns and subtly indented full group names"></a><figcaption><strong>Find your groups</strong><span>Filter the server’s group list and sort by name or article count.</span></figcaption></figure>
+          <figure class="shot"><a href="assets/screenshots/gallery-memory.png" data-lightbox><img src="assets/screenshots/gallery-memory.png" width="1040" height="680" loading="lazy" alt="Image viewer displaying an in-memory preview with an explicit Save action"></a><figcaption><strong>Preview, then save</strong><span>A larger image viewer with an explicit Save action.</span></figcaption></figure>
+          <figure class="shot"><a href="assets/screenshots/downloads-completed.png" data-lightbox><img src="assets/screenshots/downloads-completed.png" width="1280" height="820" loading="lazy" alt="Completed downloads with file previews and direct folder actions"></a><figcaption><strong>Keep completed files close</strong><span>Preview files, open their folder, or remove entries while keeping files.</span></figcaption></figure>
+          <figure class="shot"><a href="assets/screenshots/settings.png" data-lightbox><img src="assets/screenshots/settings.png" width="1040" height="680" loading="lazy" alt="Server settings with organized connection configuration and TLS selection"></a><figcaption><strong>Configure your connection</strong><span>Organized application preferences and per-server settings.</span></figcaption></figure>
+        </div>
+      </div>
+    </section>
+    <section class="section wrap technical">
+      <div class="section-heading"><p class="eyebrow">Under the surface</p><h2>A native app.<br>An independent NNTP client.</h2><p>The interface is built with egui. A background Rust runtime handles network access, decoding, and the download pipeline.</p></div>
+      <div class="technical-details"><div><h3>Connect securely</h3><p>Implicit TLS and STARTTLS, with certificate verification. Server-specific connection limits apply across headers, previews, and downloads.</p></div><div><h3>Keep local browsing quick</h3><p>Compressed, checksummed header blocks alongside SQLite metadata. Selected article bodies use a separate bounded compressed cache.</p></div><div><h3>Use the same engine headlessly</h3><p>Manage servers and subscriptions, fetch headers, list articles, and control jobs from the CLI.</p><pre><code>nntpbrowser sync 1 --limit 10000&#10;nntpbrowser posts 1</code></pre></div><a class="text-link" href="https://github.com/mnj/nntpbrowser/blob/main/docs/nntp-support.md">Read the NNTP support matrix <span aria-hidden="true">↗</span></a></div>
+    </section>
+    <section id="download" class="section wrap">
+      <div class="section-heading"><p class="eyebrow">Get started</p><h2>A new window into your groups.</h2><p>Choose a package for your desktop. Bring your own Usenet server account, then add it in Settings and subscribe to a group.</p></div>
+      <div class="download-grid">
+        <article class="download-card"><span class="platform">Linux / x86-64</span><h3>amd64</h3><p>Intel and AMD desktops.</p><a class="button primary" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_amd64.AppImage">Download AppImage <span aria-hidden="true">↓</span></a><div class="package-options"><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_amd64.deb">Debian / Ubuntu <span>.deb ↓</span></a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_amd64.rpm">RPM package <span>.rpm ↓</span></a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_amd64.flatpak">Flatpak bundle <span>.flatpak ↓</span></a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_amd64.tar.gz">Tar archive <span>.tar.gz ↓</span></a></div></article>
+        <article class="download-card"><span class="platform">Linux / AArch64</span><h3>arm64</h3><p>64-bit ARM systems.</p><a class="button primary" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_arm64.AppImage">Download AppImage <span aria-hidden="true">↓</span></a><div class="package-options"><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_arm64.deb">Debian / Ubuntu <span>.deb ↓</span></a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_arm64.rpm">RPM package <span>.rpm ↓</span></a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_arm64.flatpak">Flatpak bundle <span>.flatpak ↓</span></a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_linux_arm64.tar.gz">Tar archive <span>.tar.gz ↓</span></a></div></article>
+        <article class="download-card"><span class="platform">Windows / x64, x86 &amp; ARM64</span><h3>Windows</h3><p>Installer or portable app.</p><a class="button primary" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_windows_x64.msi">Download x64 MSI <span aria-hidden="true">↓</span></a><a class="package-link" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_windows_x64_portable.zip">x64 portable ZIP <span aria-hidden="true">↓</span></a><div class="architecture-options"><div><strong>x86</strong><span><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_windows_x86.msi">MSI</a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_windows_x86_portable.zip">Portable ZIP</a></span></div><div><strong>ARM64</strong><span><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_windows_arm64.msi">MSI</a><a href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_windows_arm64_portable.zip">Portable ZIP</a></span></div></div></article>
+        <article class="download-card"><span class="platform">macOS / Universal</span><h3>macOS</h3><p>One app for Apple silicon and Intel.</p><a class="button primary" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_macos_universal.dmg">Download DMG <span aria-hidden="true">↓</span></a><a class="package-link" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser-cli_latest_macos_universal.zip">Command-line tools ZIP <span aria-hidden="true">↓</span></a><p class="package-note">Ad-hoc signed; not notarized.</p></article>
+        <article class="download-card"><span class="platform">FreeBSD / x86-64</span><h3>FreeBSD</h3><p>A tar archive for amd64 systems.</p><a class="button primary" href="https://github.com/mnj/nntpbrowser/releases/download/latest/nntpbrowser_latest_freebsd_x86_64.tar.gz">Download .tar.gz <span aria-hidden="true">↓</span></a><a class="package-link" href="https://github.com/mnj/nntpbrowser/releases">Release notes &amp; requirements <span aria-hidden="true">↗</span></a></article>
+        <article class="download-card build-card"><span class="platform">Build it yourself</span><h3>From source</h3><p>Use the Rust toolchain to build the desktop app and CLI.</p><pre><code>git clone https://github.com/mnj/nntpbrowser.git&#10;cd nntpbrowser&#10;cargo run -p app --bin nntpbrowser</code></pre><a class="package-link" href="https://github.com/mnj/nntpbrowser#run">Build instructions <span aria-hidden="true">↗</span></a></article>
+      </div>
+      <p class="release-note">Packages publish to the rolling <code>latest</code> release after all platform builds pass. Download links become available after the first successful publication. Windows builds are unsigned; macOS builds are not notarized. <a href="https://github.com/mnj/nntpbrowser/releases">All releases, checksums, and release notes ↗</a></p>
+      <div class="limits"><h3>A few useful details</h3><p>Gallery previews default to files smaller than 10 MiB and a 64 MiB RAM cache. Videos may need to be saved for playback; some formats show an icon rather than a poster. Payload decoding supports yEnc, uuencode, and POSIX begin-base64. RAR extraction needs <code>unrar</code> or <code>unar</code>. Recovery searches are bounded: insufficient repair data, incomplete sequential uuencode, and multiple independent repair sets can still leave a job incomplete.</p><p><a href="https://github.com/mnj/nntpbrowser/blob/main/README.md">Read the documentation</a> for storage behavior, supported protocol extensions, and current limitations.</p></div>
+    </section>
+  </main>
+  <footer class="footer wrap"><a class="brand" href="./"><img src="favicon.svg" alt="" width="28" height="28"><span>NNTPBrowser</span></a><p>Native Usenet browsing, written in Rust.</p><div><a href="https://github.com/mnj/nntpbrowser">Source</a><a href="https://github.com/mnj/nntpbrowser/issues">Issues</a><a href="https://github.com/mnj/nntpbrowser/blob/main/LICENSE">MIT license</a></div></footer>
+  <dialog id="lightbox" aria-label="Screenshot viewer"><div class="lightbox-toolbar"><span id="lightbox-title">Screenshot</span><button id="lightbox-close" type="button" aria-label="Close screenshot">Close <span aria-hidden="true">×</span></button></div><img id="lightbox-image" alt=""></dialog>
+</body>
+</html>

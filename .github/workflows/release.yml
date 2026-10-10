@@ -1,0 +1,393 @@
+name: Release
+
+# Main passes reusable CI before publishing an immutable vX.Y.Z release and
+# stable, versionless rolling-latest assets. Reruns preserve versioned assets.
+# Labels: release:major/minor/patch/skip; otherwise Conventional Commit PR title.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (Cargo workspace version is the initial floor)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  labels:
+    runs-on: ubuntu-22.04
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Ensure release labels exist
+        run: |
+          gh label create release:major --force --color B60205 --description "Release as a new major version"
+          gh label create release:minor --force --color FBCA04 --description "Release as a new minor version"
+          gh label create release:patch --force --color 0E8A16 --description "Release as a new patch version"
+          gh label create release:skip --force --color CCCCCC --description "Merge without publishing a release"
+
+  version:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      skip: ${{ steps.next.outputs.skip }}
+      published: ${{ steps.next.outputs.published }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: next
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_BUMP: ${{ inputs.bump }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          # Dispatching on a branch/tag, or rerunning an old main commit, must
+          # never move latest backwards or publish a version for stale code.
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "${GITHUB_REF}" != refs/heads/main || "${GITHUB_SHA}" != "${main_sha}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale or non-main release request"
+            exit 0
+          fi
+          existing="$(git tag --points-at HEAD -l 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+          if [[ -n "${existing}" ]]; then
+            echo "version=${existing#v}" >> "$GITHUB_OUTPUT"
+            draft="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"${existing}\") | .draft")"
+            if [[ "${draft}" == false ]]; then
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              echo "Already published ${existing}; reusing immutable assets"
+            else
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          bump="${INPUT_BUMP:-auto}"
+          title="$(git log -1 --format=%s)"
+          skip=false
+          if [[ "${GITHUB_EVENT_NAME}" == push ]]; then
+            if [[ "${COMMIT_MESSAGE}" == *"[skip release]"* ]]; then skip=true; fi
+            pr="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0] // empty')"
+            if [[ -n "${pr}" ]]; then
+              title="$(jq -r '.title' <<<"${pr}")"
+              labels="$(jq -r '.labels[].name' <<<"${pr}")"
+              if grep -qx 'release:skip' <<<"${labels}"; then skip=true
+              elif grep -qx 'release:major' <<<"${labels}"; then bump=major
+              elif grep -qx 'release:minor' <<<"${labels}"; then bump=minor
+              elif grep -qx 'release:patch' <<<"${labels}"; then bump=patch
+              fi
+            fi
+          fi
+          version="$(scripts/next-version.sh "${bump}" "${title}")"
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "::error::Tag v${version} already exists on another commit"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "skip=${skip}" >> "$GITHUB_OUTPUT"
+          echo "Next version: ${version} (bump=${bump}, skip=${skip})"
+
+  build:
+    needs: [ci, version]
+    if: needs.version.outputs.skip == 'false' && needs.version.outputs.published != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Keep the glibc baseline compatible with Ubuntu 22.04 / Debian 12.
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.arch }}
+      - name: Install native packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm zsync squashfs-tools desktop-file-utils appstream curl pkg-config libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev
+      - name: Build packages
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          packaging/build-linux.sh "$VERSION" "$ARCH"
+          bash packaging/tests/artifacts-linux.sh "$VERSION" "$ARCH"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntpbrowser-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  flatpak:
+    needs: [version, build]
+    if: needs.version.outputs.skip == 'false' && needs.version.outputs.published != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntpbrowser-${{ matrix.arch }}
+          path: dist
+      - name: Install Flatpak packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder elfutils librsvg2-common
+          # The sandbox builder needs user namespaces on this disposable runner.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Build Flatpak from the native Linux archive
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: packaging/build-flatpak.sh "$VERSION" "$ARCH"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntpbrowser-flatpak-${{ matrix.arch }}
+          path: dist/*.flatpak
+          if-no-files-found: error
+
+  windows:
+    needs: [ci, version]
+    if: needs.version.outputs.skip == 'false' && needs.version.outputs.published != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            msvc: amd64
+          - arch: x86
+            runner: windows-2022
+            target: i686-pc-windows-msvc
+            msvc: amd64_x86
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            msvc: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-windows-${{ matrix.arch }}
+      - name: Install WiX
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build MSI and portable ZIP
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+        run: ./packaging/build-windows.ps1 -Version $env:VERSION -Arch $env:ARCH
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntpbrowser-windows-${{ matrix.arch }}
+          path: |
+            dist/*.msi
+            dist/*.zip
+          if-no-files-found: error
+
+  macos:
+    needs: [ci, version]
+    if: needs.version.outputs.skip == 'false' && needs.version.outputs.published != 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-macos-universal
+      - name: Build universal application and CLI packages
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: packaging/build-macos.sh "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntpbrowser-macos-universal
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+  freebsd:
+    needs: [ci, version]
+    if: needs.version.outputs.skip == 'false' && needs.version.outputs.published != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build in a native FreeBSD VM
+        uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc
+        with:
+          release: "14.3"
+          usesh: true
+          cpu: 4
+          mem: 12288
+          envs: VERSION GH_TOKEN
+          prepare: |
+            pkg install -y bash git curl pkgconf cmake python3 libxkbcommon wayland libX11 libXcursor libXrandr libXi libxcb mesa-libs vulkan-loader fontconfig freetype2
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+          run: |
+            set -eu
+            . "$HOME/.cargo/env"
+            git config --global --add safe.directory "$PWD"
+            export CARGO_TARGET_DIR=/var/tmp/nntpbrowser-target CARGO_BUILD_JOBS=4
+            bash packaging/build-freebsd.sh "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntpbrowser-freebsd-x86_64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [ci, version, build, flatpak, windows, macos, freebsd]
+    if: >-
+      ${{ !cancelled() && needs.ci.result == 'success' && needs.version.result == 'success'
+          && needs.version.outputs.skip == 'false'
+          && ((needs.build.result == 'success' && needs.windows.result == 'success'
+               && needs.macos.result == 'success' && needs.freebsd.result == 'success'
+               && needs.flatpak.result == 'success')
+              || needs.version.outputs.published == 'true') }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        if: needs.version.outputs.published != 'true'
+        with:
+          pattern: nntpbrowser-*
+          path: dist
+          merge-multiple: true
+      - name: Publish immutable version and rolling latest
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "${GITHUB_REF}" != refs/heads/main || "${GITHUB_SHA}" != "${main_sha}" ]]; then
+            echo "Main advanced while packages built; skipping stale publication"
+            exit 0
+          fi
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid release version"; exit 1; }
+          tag="v${VERSION}"
+          # A failed API request must stop publication, never masquerade as an
+          # absent draft and permit overwriting an immutable release.
+          draft="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"${tag}\") | .draft")"
+          published=false
+          if [[ "${draft}" == false ]]; then
+            published=true
+            echo "Already published ${tag}; reusing immutable release assets"
+            mkdir -p dist
+            gh release download "${tag}" --dir dist --pattern "nntpbrowser*_${VERSION}_*" --clobber
+          fi
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            [[ "$(git rev-list -n1 "${tag}")" == "${GITHUB_SHA}" ]] || { echo "::error::Version tag points at another commit"; exit 1; }
+          fi
+          required=()
+          for arch in amd64 arm64; do
+            required+=("nntpbrowser_${VERSION}_linux_${arch}.tar.gz" "nntpbrowser_${VERSION}_${arch}.deb")
+            for suffix in rpm AppImage AppImage.zsync flatpak; do
+              required+=("nntpbrowser_${VERSION}_linux_${arch}.${suffix}")
+            done
+          done
+          for arch in x64 x86 arm64; do
+            required+=("nntpbrowser_${VERSION}_windows_${arch}.msi" "nntpbrowser_${VERSION}_windows_${arch}_portable.zip")
+          done
+          required+=("nntpbrowser_${VERSION}_macos_universal.dmg" "nntpbrowser-cli_${VERSION}_macos_universal.zip" "nntpbrowser_${VERSION}_freebsd_x86_64.tar.gz")
+          for asset in "${required[@]}"; do
+            [[ -s "dist/${asset}" ]] || { echo "::error::Missing release package ${asset}"; exit 1; }
+          done
+          (cd dist && sha256sum nntpbrowser* > SHA256SUMS)
+          if [[ "${published}" != true ]]; then
+            # Drafts can be repaired after partial uploads. Published versioned
+            # assets are immutable and never enter this upload path.
+            if [[ "${draft}" == true ]]; then
+              gh release upload "${tag}" dist/* --clobber
+            else
+              gh release create "${tag}" dist/* --target "${GITHUB_SHA}" \
+                --title "NNTPBrowser ${VERSION}" --generate-notes --draft
+            fi
+            assets="$(gh release view "${tag}" --json assets --jq '.assets[].name')"
+            for file in dist/*; do
+              grep -Fxq "$(basename "$file")" <<<"${assets}" || { echo "::error::Draft upload is incomplete"; exit 1; }
+            done
+            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+            [[ "${GITHUB_SHA}" == "${main_sha}" ]] || { echo "Main advanced; leaving unpublished draft"; exit 0; }
+            gh release edit "${tag}" --draft=false --latest
+          fi
+
+          # Only rolling assets are replaced. Versioned assets are never clobbered.
+          mkdir rolling
+          for file in dist/*; do
+            [[ "$(basename "$file")" != SHA256SUMS ]] || continue
+            name="$(basename "$file")"
+            cp "$file" "rolling/${name/_${VERSION}_/_latest_}"
+          done
+          (cd rolling && sha256sum nntpbrowser* > SHA256SUMS)
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          [[ "${GITHUB_SHA}" == "${main_sha}" ]] || { echo "Main advanced; preserving rolling latest"; exit 0; }
+          old_latest="$(git ls-remote origin refs/tags/latest | awk '{print $1}')"
+          git tag -f latest "${GITHUB_SHA}"
+          git push "--force-with-lease=refs/tags/latest:${old_latest}" origin refs/tags/latest
+          notes="Rolling build of [v${VERSION}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/v${VERSION}) (${GITHUB_SHA:0:7})."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "NNTPBrowser latest (${VERSION})" --notes "${notes}" --latest=false
+            while IFS= read -r asset; do
+              [[ -e "rolling/${asset}" ]] || gh release delete-asset latest "${asset}" -y
+            done < <(gh release view latest --json assets --jq '.assets[].name')
+            gh release upload latest rolling/* --clobber
+          else
+            gh release create latest rolling/* --verify-tag \
+              --title "NNTPBrowser latest (${VERSION})" --notes "${notes}" --latest=false
+          fi
